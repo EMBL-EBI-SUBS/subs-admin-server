@@ -1,0 +1,128 @@
+buildscript {
+    repositories {
+        mavenCentral()
+        maven { url "https://plugins.gradle.org/m2/" }
+    }
+    dependencies {
+        classpath("org.springframework.boot:spring-boot-gradle-plugin:1.5.1.RELEASE")
+        classpath 'org.hidetake:gradle-ssh-plugin:2.2.0'
+    }
+}
+
+group 'uk.ac.ebi.subs'
+version '1.0.0'
+
+apply plugin: 'java'
+apply plugin: 'maven'
+apply plugin: 'maven-publish'
+apply plugin: 'org.springframework.boot'
+apply plugin: 'org.hidetake.ssh'
+apply plugin: 'application'
+
+mainClassName = "uk.ac.ebi.subs.admin.USIAdminApplication"
+
+repositories {
+    mavenLocal()
+    maven { url 'https://oss.sonatype.org/content/repositories/snapshots' }
+    mavenCentral()
+}
+
+dependencies {
+    compile("org.springframework.boot:spring-boot-starter-web")
+    compile("de.codecentric:spring-boot-admin-server:1.5.4")
+    compile("de.codecentric:spring-boot-admin-server-ui:1.5.4")
+    compile('uk.ac.ebi.tsc.aap.client:security:0.2.2-SNAPSHOT') {
+        changing = true
+    }
+}
+
+springBoot {
+    executable = true
+}
+
+processResources {
+    filesMatching('application.yml') {
+        expand(project.properties)
+    }
+}
+
+ext.gradle_env = hasProperty('env') ? env : 'dev'
+
+remotes {
+    dev {
+        role('dev')
+        host = project.hasProperty(project.name + "DevDeployTarget") ? getProperty(project.name + "DevDeployTarget") : 'localhost'
+    }
+    test {
+        role('test')
+        host = project.hasProperty(project.name + "TestDeployTarget") ? getProperty(project.name + "TestDeployTarget") : 'localhost'
+    }
+    prod {
+        role('prod')
+        host = project.hasProperty(project.name + "ProdDeployTarget") ? getProperty(project.name + "ProdDeployTarget") : 'localhost'
+    }
+}
+
+ssh.settings {
+    user = 'sub_adm'
+    logging = 'stdout'
+    jschLog = true
+}
+
+if (project.hasProperty('sshKeyFile')) {
+    ssh.settings.identity = new File(sshKeyFile)
+}
+
+if (project.hasProperty('sshPassphrase')) {
+    ssh.settings.passphrase = sshPassphrase
+}
+
+task deployJar(dependsOn: 'build') {
+    doLast {
+        sshRun()
+    }
+    ssh.settings {
+        knownHosts = allowAnyHosts
+    }
+}
+
+task testSsh() {
+    doLast {
+        sshTestRun()
+    }
+    ssh.settings {
+        knownHosts = allowAnyHosts
+    }
+}
+
+
+
+private Object sshRun() {
+    ssh.run {
+        session(remotes.role(gradle_env)) {
+            execute "/homes/sub_adm/create_dirs.sh $gradle_env $project.name", ignoreError: false
+            def jarFileName = project.name + "-"  + project.version + "." + System.currentTimeMillis() + ".jar"
+            File jarDeployFile = new File("/data/$remote.name/$project.name/jar",jarFileName)
+            File jarDeployDir = jarDeployFile.getParentFile()
+            println "Uploading jar $jar.archivePath.name to $jarDeployFile.absolutePath  area on $remote"
+            put(jar.archivePath.absolutePath, jarDeployFile.absolutePath)
+            println "creating symbolic link to $jar.archiveName"
+            def result = execute "ln -s -f $jarDeployFile.absolutePath $jarDeployDir/$jar.baseName" + ".jar", ignoreError: true
+            println result
+            println "updating permissions of $jarDeployDir/$jar.archiveName"
+            execute "chmod u+x $jarDeployDir/*", ignoreError: false
+        }
+    }
+}
+
+private Object sshTestRun(){
+    ssh.run {
+        session(remotes.role(gradle_env)){
+            println "started ssh session to $remote"
+        }
+    }
+}
+
+task printClasspath << {
+    configurations.testCompile.each { println it }
+}
