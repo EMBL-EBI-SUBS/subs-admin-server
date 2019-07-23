@@ -1,5 +1,5 @@
 plugins {
-    id 'org.springframework.boot' version '2.1.6.RELEASE'
+    id 'org.springframework.boot' version '1.5.7.RELEASE'
     id 'java'
     id 'org.hidetake.ssh' version '2.10.1'
 }
@@ -18,7 +18,7 @@ repositories {
 }
 
 ext {
-    set('springBootAdminVersion', "2.1.5")
+    set('springBootAdminVersion', "1.5.7")
 }
 
 dependencies {
@@ -33,8 +33,8 @@ dependencyManagement {
     }
 }
 
-bootJar {
-    launchScript()
+springBoot {
+    executable = true
 }
 
 //processResources {
