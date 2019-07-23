@@ -9,7 +9,7 @@ apply plugin: 'maven-publish'
 apply plugin: 'application'
 
 group = 'uk.ac.ebi.subs'
-version = '1.0.1-SNAPSHOT'
+version = '1.0.2-SNAPSHOT'
 sourceCompatibility = '1.8'
 mainClassName = "uk.ac.ebi.subs.admin.USIAdminApplication"
 
